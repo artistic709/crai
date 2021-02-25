@@ -1,7 +1,7 @@
 pragma solidity 0.5.17;
 
 contract OracleRelayer {
-    function redemptionPrice() public returns (uint256);
+    function redemptionPrice() public returns (uint);
 }
 
 contract CoinLike {
@@ -11,8 +11,8 @@ contract CoinLike {
 }
 
 contract CRAI {
-    OracleRelayer public Oracle = OracleRelayer(0x4ed9C0dCa0479bC64d8f4EB3007126D5791f7851);
-    CoinLike      public RAI    = CoinLike(0x03ab458634910AaD20eF5f1C8ee96F1D6ac54919);
+    OracleRelayer public constant Oracle = OracleRelayer(0x4ed9C0dCa0479bC64d8f4EB3007126D5791f7851);
+    CoinLike      public constant RAI    = CoinLike(0x03ab458634910AaD20eF5f1C8ee96F1D6ac54919);
 
         // --- ERC20 Data ---
     string  public constant name     = "Crai";
@@ -97,12 +97,12 @@ contract CRAI {
         emit Transfer(src, dst, wad);
         return true;
     }
+
     function approve(address usr, uint wad) external returns (bool) {
         allowance[msg.sender][usr] = wad;
         emit Approval(msg.sender, usr, wad);
         return true;
     }
-
 
     // wad is denominated in rai
     function join(address dst, uint wad) external {
@@ -110,11 +110,12 @@ contract CRAI {
         RAI.transferFrom(msg.sender, address(this), wad);
     }
 
+    // wad is denominated in rai
     function exit(address src, uint wad) public {
         require(balanceOfUnderlying[src] >= wad, "crai/insufficient-balance");
         if (src != msg.sender && allowance[src][msg.sender] != uint(-1)) {
             uint rp = Oracle.redemptionPrice();
-            uint amt = rdivup(wad, rp);
+            uint amt = rmul(wad, rp);
             require(allowance[src][msg.sender] >= amt, "crai/insufficient-allowance");
             allowance[src][msg.sender] = sub(allowance[src][msg.sender], amt);
         }
@@ -125,7 +126,14 @@ contract CRAI {
     // wad is denominated in usd
     function draw(address src, uint wad) external {
         uint rp = Oracle.redemptionPrice();
-        exit(src, rdivup(wad, rp));
+        uint amt = rdivup(wad, rp);
+        if (src != msg.sender && allowance[src][msg.sender] != uint(-1)) {
+            require(allowance[src][msg.sender] >= wad, "crai/insufficient-allowance");
+            allowance[src][msg.sender] = sub(allowance[src][msg.sender], wad);
+        }
+        require(balanceOfUnderlying[src] >= amt, "crai/insufficient-balance");
+        balanceOfUnderlying[src] = sub(balanceOfUnderlying[src], amt);
+        RAI.transfer(msg.sender, amt);
     }
 
     // --- Approve by signature ---
