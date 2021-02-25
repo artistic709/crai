@@ -106,21 +106,25 @@ contract CRAI {
 
     // wad is denominated in rai
     function join(address dst, uint wad) external {
+        uint rp = Oracle.redemptionPrice();
+        uint amt = rmul(wad, rp);
         balanceOfUnderlying[dst] = add(balanceOfUnderlying[dst], wad);
         RAI.transferFrom(msg.sender, address(this), wad);
+        emit Transfer(address(0), dst, amt);
     }
 
     // wad is denominated in rai
     function exit(address src, uint wad) public {
         require(balanceOfUnderlying[src] >= wad, "crai/insufficient-balance");
+        uint rp = Oracle.redemptionPrice();
+        uint amt = rmul(wad, rp);
         if (src != msg.sender && allowance[src][msg.sender] != uint(-1)) {
-            uint rp = Oracle.redemptionPrice();
-            uint amt = rmul(wad, rp);
             require(allowance[src][msg.sender] >= amt, "crai/insufficient-allowance");
             allowance[src][msg.sender] = sub(allowance[src][msg.sender], amt);
         }
         balanceOfUnderlying[src] = sub(balanceOfUnderlying[src], wad);
         RAI.transfer(msg.sender, wad);
+        emit Transfer(src, address(0), amt);
     }
 
     // wad is denominated in usd
@@ -134,6 +138,7 @@ contract CRAI {
         require(balanceOfUnderlying[src] >= amt, "crai/insufficient-balance");
         balanceOfUnderlying[src] = sub(balanceOfUnderlying[src], amt);
         RAI.transfer(msg.sender, amt);
+        emit Transfer(src, address(0), wad);
     }
 
     // --- Approve by signature ---
